@@ -1,0 +1,19 @@
+Wiring checklist — what was wrong and what to verify
+1. ESP32 was missing from your diagram entirely — add it as shown above
+2. DHT22 pin 1 (VCC) → 3.3V from ESP32 | pin 2 (DAT) → GPIO4 with 10kΩ pull-up to 3.3V
+3. Relay coil VCC → 5V (NOT 12V). Relay coil GND → ESP32 GND. Relay IN → GPIO pin
+4. Never connect relay coil directly to 12V — it will burn the relay and damage the ESP32
+5. Relay load side: COM → 12V rail, NO → Fan+ or Pump+, Fan-/Pump- → GND
+6. Buck converter: 12V IN → 5V OUT → ESP32 VIN pin (not 3V3 pin!)
+7. All GNDs must be common: ESP32 GND, relay GND, DHT22 GND, buck GND all joined
+8. LEDs: anode → GPIO via 200Ω resistor → LED → GND (as in your original, this is correct)
+9. GPIO16 → Relay1 IN (fan) GPIO17 → Relay2 IN (pump) GPIO4 → DHT22 data
+Relay modules with built-in optocouplers (like your JQC-3F boards) are fine — just ensure
+the VCC pin powers the optocoupler logic, not the relay coil load side
+Wire colours: red=12V, orange=5V, green=3.3V, yellow=data, blue/purple=GPIO, black=GND
+
+Real Random Forest can’t run directly on ESP32
+👉 So we convert it into decision rules (same output)
+
+auth=BvcjwA9tVQdW2R_TrVRZ7aX2wdzsyBVt
+ssid= vivek’s iPhone

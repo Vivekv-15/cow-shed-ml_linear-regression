@@ -1,0 +1,182 @@
+// ============================================================
+//  BLYNK CREDENTIALS — MUST BE FIRST, BEFORE ALL #includes
+// ============================================================
+#define BLYNK_TEMPLATE_ID   "TMPLxTMPL3MSUgKU4i"       // ← Your Template ID
+#define BLYNK_TEMPLATE_NAME "Cow Shed System"   // ← Your Template Name
+#define BLYNK_AUTH_TOKEN    "BvcjwA9tVQdW2R_TrVRZ7aX2wdzsyBVt"     // ← Your Auth Token
+
+#define BLYNK_PRINT Serial
+
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <DHT.h>
+
+// ============================================================
+//  WiFi CREDENTIALS
+// ============================================================
+char ssid[] = "Vivek'sA55";
+char pass[] = "qqqqqqqq";
+char auth[] = "BvcjwA9tVQdW2R_TrVRZ7aX2wdzsyBVt";
+
+// -------- PIN DEFINITIONS --------
+#define DHTPIN    4
+#define DHTTYPE   DHT22
+#define FAN_PIN   16
+#define PUMP_PIN  17
+
+DHT dht(DHTPIN, DHTTYPE);
+BlynkTimer timer;
+
+// -------- SYSTEM STATE FLAGS --------
+bool systemPower = false;
+bool manualFan   = false;
+bool manualPump  = false;
+
+float temp = 0.0;
+float hum  = 0.0;
+
+// ============================================================
+//  RANDOM FOREST MODEL
+// ============================================================
+
+int rfPredictFan(float t, float h) {
+  int votes = 0;
+
+  if (t > 33.0f) votes++;
+  else if (h > 70.0f) votes++;
+
+  if (h > 65.0f) votes++;
+  else if (t > 36.0f) votes++;
+
+  if (t > 35.0f) votes++;
+  else if (h > 72.0f) votes++;
+
+  if (t > 34.0f && h > 60.0f) votes++;
+  else if (t > 38.0f) votes++;
+
+  if (h > 68.0f || t > 35.5f) votes++;
+
+  return (votes >= 3) ? 1 : 0;
+}
+
+int rfPredictPump(float t, float h) {
+  int votes = 0;
+
+  if (t > 40.0f) votes++;
+  else if (h < 30.0f) votes++;
+
+  if (h < 25.0f) votes++;
+  else if (t > 42.0f) votes++;
+
+  if (t > 38.0f && h < 35.0f) votes++;
+
+  if (h < 28.0f || t > 41.0f) votes++;
+
+  if (t > 39.0f && h < 40.0f) votes++;
+
+  return (votes >= 3) ? 1 : 0;
+}
+
+// ============================================================
+//  BLYNK HANDLERS
+// ============================================================
+
+BLYNK_WRITE(V4) {
+  manualFan = param.asInt();
+  Serial.print("Manual Fan Override: ");
+  Serial.println(manualFan ? "ON" : "OFF");
+}
+
+BLYNK_WRITE(V5) {
+  manualPump = param.asInt();
+  Serial.print("Manual Pump Override: ");
+  Serial.println(manualPump ? "ON" : "OFF");
+}
+
+BLYNK_WRITE(V6) {
+  systemPower = param.asInt();
+  Serial.print("System Power: ");
+  Serial.println(systemPower ? "ON" : "OFF");
+
+  if (!systemPower) {
+    digitalWrite(FAN_PIN,  LOW);
+    digitalWrite(PUMP_PIN, LOW);
+    Blynk.virtualWrite(V2, 0);
+    Blynk.virtualWrite(V3, 0);
+    Serial.println("System OFF → Fan and Pump stopped.");
+  }
+}
+
+// ============================================================
+//  SENSING + CONTROL LOOP
+// ============================================================
+
+void sendData() {
+  if (!systemPower) return;
+
+  temp = dht.readTemperature();
+  hum  = dht.readHumidity();
+
+  if (isnan(temp) || isnan(hum)) {
+    Serial.println("[ERROR] DHT22 read failed! Check wiring.");
+    Blynk.virtualWrite(V0, -1);
+    Blynk.virtualWrite(V1, -1);
+    return;
+  }
+
+  Serial.printf("[SENSOR] Temp: %.1f C  |  Humidity: %.1f %%\n", temp, hum);
+
+  Blynk.virtualWrite(V0, temp);
+  Blynk.virtualWrite(V1, hum);
+
+  int mlFan  = rfPredictFan(temp, hum);
+  int mlPump = rfPredictPump(temp, hum);
+
+  Serial.printf("[ML]     Fan: %s  |  Pump: %s\n",
+                mlFan ? "ON" : "OFF", mlPump ? "ON" : "OFF");
+
+  int fanState  = manualFan  ? 1 : mlFan;
+  int pumpState = manualPump ? 1 : mlPump;
+
+  digitalWrite(FAN_PIN,  fanState  ? HIGH : LOW);
+  digitalWrite(PUMP_PIN, pumpState ? HIGH : LOW);
+
+  Blynk.virtualWrite(V2, fanState  * 255);
+  Blynk.virtualWrite(V3, pumpState * 255);
+
+  Serial.printf("[OUTPUT] Fan: %s  |  Pump: %s\n\n",
+                fanState  ? "ON" : "OFF",
+                pumpState ? "ON" : "OFF");
+}
+
+// ============================================================
+//  SETUP
+// ============================================================
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(FAN_PIN,  OUTPUT);
+  pinMode(PUMP_PIN, OUTPUT);
+  digitalWrite(FAN_PIN,  LOW);
+  digitalWrite(PUMP_PIN, LOW);
+
+  dht.begin();
+  delay(2000);
+
+  Serial.println("Connecting to Blynk...");
+  Blynk.begin(auth, ssid, pass);
+
+  timer.setInterval(2000L, sendData);
+
+  Serial.println("Setup complete. System OFF by default.");
+}
+
+// ============================================================
+//  LOOP
+// ============================================================
+
+void loop() {
+  Blynk.run();
+  timer.run();
+}
