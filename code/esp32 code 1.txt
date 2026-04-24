@@ -138,8 +138,8 @@ void sendData() {
   int fanState  = manualFan  ? 1 : mlFan;
   int pumpState = manualPump ? 1 : mlPump;
 
-  digitalWrite(FAN_PIN,  fanState  ? HIGH : LOW);
-  digitalWrite(PUMP_PIN, pumpState ? HIGH : LOW);
+  digitalWrite(FAN_PIN,  fanState  ? LOW : HIGH);
+  digitalWrite(PUMP_PIN, pumpState ? LOW : HIGH);
 
   Blynk.virtualWrite(V2, fanState  * 255);
   Blynk.virtualWrite(V3, pumpState * 255);
@@ -158,9 +158,9 @@ void setup() {
 
   pinMode(FAN_PIN,  OUTPUT);
   pinMode(PUMP_PIN, OUTPUT);
-  digitalWrite(FAN_PIN,  LOW);
-  digitalWrite(PUMP_PIN, LOW);
-
+  digitalWrite(FAN_PIN,  HIGH);
+  digitalWrite(PUMP_PIN, HIGH);
+ 
   dht.begin();
   delay(2000);
 
